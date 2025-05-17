@@ -1,0 +1,109 @@
+#include <SoftwareSerial.h>
+#include <Servo.h>
+
+// SIM800L connections
+SoftwareSerial sim800(10, 11); // RX, TX
+
+// Ultrasonic Sensor pins
+const int trigPin = 7;
+const int echoPin = 6;
+
+// IR Sensor pin
+const int irSensorPin = 2;
+
+// Servo Motor
+Servo lidServo;
+const int servoPin = 5;
+
+// Thresholds
+const int distanceThreshold = 10; // Distance below which dustbin is considered full (in cm)
+const int servoOpenAngle = 90;
+const int servoCloseAngle = 0;
+
+long duration;
+int distance;
+bool messageSent = false;
+
+void setup() {
+  Serial.begin(9600);
+  sim800.begin(9600);
+
+  // Pin Modes
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(irSensorPin, INPUT);
+
+  // Attach servo
+  lidServo.attach(servoPin);
+  lidServo.write(servoCloseAngle); // Initial position: closed
+
+  Serial.println("Smart Dustbin Initialized...");
+  delay(2000);
+}
+
+void loop() {
+  // Get distance from ultrasonic sensor
+  distance = getDistance();
+
+  // Display distance
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+
+  // Check dustbin full condition
+  if (distance < distanceThreshold && !messageSent) {
+    sendSMS("Alert: Dustbin is full. Please empty it.");
+    messageSent = true;
+  }
+
+  // Reset SMS if bin is emptied
+  if (distance > distanceThreshold + 5) {
+    messageSent = false;
+  }
+
+  // Check for person near the bin
+  if (digitalRead(irSensorPin) == LOW) { // Assuming LOW = object detected
+    Serial.println("Person detected, opening lid...");
+    lidServo.write(servoOpenAngle);
+    delay(3000); // Keep lid open for 3 seconds
+    lidServo.write(servoCloseAngle);
+    Serial.println("Lid closed.");
+  }
+
+  delay(2000);
+}
+
+// Function to measure distance
+int getDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH);
+  return duration * 0.034 / 2;
+}
+
+// Function to send SMS
+void sendSMS(String message) {
+  Serial.println("Sending SMS...");
+  sim800.println("AT+CMGF=1"); 
+  delay(1000);
+  sim800.println("AT+CSCS=\"GSM\"");
+  delay(1000);
+  sim800.println("AT+CMGS=\"+918863952762\"");
+  delay(1000);
+  sim800.print(message);
+  delay(1000);
+  sim800.write(26); // Ctrl+Z
+  Serial.println("Message sent.");
+}
+
+
+
+
+
+  
+ 
